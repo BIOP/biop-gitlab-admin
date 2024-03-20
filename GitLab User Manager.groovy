@@ -32,7 +32,6 @@ class UserManagerGit{
 	private static File biopDataFolder = new File ("\\\\sv-nas1.rcp.epfl.ch\\ptbiop-raw\\public\\")
 	private static File localGitReposFolder = new File ("D:\\gitlab-ipa-projects")
 	
-	
 	// Read the GitLab API from a .gitlab file made by the user
 	static {	
 		def creds = new File ( System.getProperty("user.home") + "/.gitlab" )
@@ -69,8 +68,10 @@ class UserManagerGit{
     	// Add shortcut to GitLab
     	Utilities.createInternetShortcut("GitLab to ${this.projectName}", projectDataFolder, repoUrl )
     	
-    	Utilities.initialiseLocalGitandPush( gitlabresults['project'], gitlabresults['analyst'] )
-    	
+    	def localRepo = Utilities.initialiseLocalGitandPush( gitlabresults['project'], gitlabresults['analyst'] )
+    		
+    	Utilities.createShorcut( projectDataFolder , localRepo)
+
 	}
 
 	
@@ -194,8 +195,7 @@ class UserManagerGit{
 			if( !this.dryRun ) projectFolder.mkdirs()
 			return projectFolder
 		}
-		
-    	
+			    	
 		
 		static initialiseLocalGitandPush( def gitlabProject, def analyst ) {
 			
@@ -217,6 +217,8 @@ class UserManagerGit{
 					"& git commit -m \"Initial commit\"" +
 					"& git push --set-upstream origin main")
 			
+			return localRepo
+
 			/* 
 			 * cd existing_folder
 			 * git init --initial-branch=main
@@ -227,6 +229,10 @@ class UserManagerGit{
 			 */
 		}
 		
+		static createShorcut( def shared_folder , def localRepo){
+			def local_shortcut = new File( localRepo , "Shared_Folder.lnk")
+			execute(" \"C:\\Program Files\\Git\\mingw64\\bin\\create-shortcut.exe\" $shared_folder $local_shortcut")
+		}
 		
 		// LDAP Query to get the default group from a user
 		static String getUserGroup( String email ) { 
@@ -286,9 +292,7 @@ class UserManagerGit{
 			IJ.log( "out> $sout\nerr> $serr")
 
 		}
-		
-		
-		
+			
 	}
 
 }
