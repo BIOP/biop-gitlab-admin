@@ -1,15 +1,19 @@
 // https://mvnrepository.com/artifact/com.konghq/unirest-java
 @Grapes([
-    @Grab(group='com.konghq', module='unirest-java', version='4.0.0-RC2'),
+    @Grab(group='com.konghq', module='unirest-java', version='3.14.5'), //4.0.0-RC2
     @Grab(group='org.apache.directory.api', module='api-all', version='2.1.0')
 ])
 
+#@ String (value="firstname.lastname@epfl.ch") user_email
+#@ String (value="The Project Name") project_name
+
+#@ Boolean(value=false) dryRun_status
+
 // Hello
 def a = 1
-UserManagerGit.dryRun = false
+UserManagerGit.dryRun = dryRun_status
 
-
-def umg = new UserManagerGit("nicolas.chiaruttini@epfl.ch", "The Greatest Project Ever")
+def umg = new UserManagerGit(user_email, project_name)
 
 return
 
@@ -25,8 +29,8 @@ class UserManagerGit{
 	
 	private String omeroDataID
 	
-	private static File biopDataFolder = new File( "\\\\sv-nas1.rcp.epfl.ch\\ptbiop-raw\\public\\" )
-	private static File localGitReposFolder = new File( "D:\\gitlab-ipa-projects" )
+	private static File biopDataFolder = new File ("\\\\sv-nas1.rcp.epfl.ch\\ptbiop-raw\\public\\")
+	private static File localGitReposFolder = new File ("D:\\gitlab-ipa-projects")
 	
 	
 	// Read the GitLab API from a .gitlab file made by the user
@@ -35,6 +39,7 @@ class UserManagerGit{
 		def lines = creds.readLines()
 		this.glToken = lines[0]
 	}
+	
 	
 	public UserManagerGit( String userEmail, String projectName ) {
 		this.userEmail = userEmail
