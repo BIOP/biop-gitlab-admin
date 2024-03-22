@@ -14,8 +14,16 @@ def a = 1
 UserManagerGit.dryRun = dryRun_status
 
 def umg = new UserManagerGit(user_email, project_name)
+umg.letsGo()
+
 
 return
+// TODO: Prepare email for user
+// TODO: Open GitLab in browser
+// TODO: Open Local git repo folder in explorer
+// TODO: Open data share folder in explorer 
+// TODO: Add OMERO ID
+// TODO: Add more info to readme
 
 
 class UserManagerGit{
@@ -24,8 +32,7 @@ class UserManagerGit{
 	private String rawProjectName
 	private String projectName
 
-	private String userGroup
-	private String userEmail
+	private LinkedHashMap<String, String> userInfo
 	
 	private String omeroDataID
 	
@@ -41,34 +48,46 @@ class UserManagerGit{
 	
 	
 	public UserManagerGit( String userEmail, String projectName ) {
-		this.userEmail = userEmail
 		this.rawProjectName = projectName
-		
 		// Sanitize project name to begin with
 	    this.projectName = Utilities.sanitize( projectName )
     	IJ.log( "Preparing project: '${this.projectName}'" )
     	
-    	// Fetch the group of the user
-    	def group = Utilities.getUserGroup( userEmail )
+    	// Fetch the group and gaspar of the user
+    	this.userInfo = Utilities.getUserInfo( userEmail )
     	
     	// Chop the email to use it for the group
-    	this.userGroup = userEmail.split("@")[0] + "_" + group
+    	this.userInfo['gitLabGroup'] = userEmail.split("@")[0] + "_" + userInfo.group
     	
-    	IJ.log( "User group is: '${this.userGroup}'" )
+    	IJ.log( "User GitLab group is: '${this.userInfo.gitLabGroup}'" )
+
+	}
+	
+	public letsGo() {
     	
     	// Create the GitLab Entry
-    	def gitlabresults = GitLab.createGitLabProject( this.projectName, this.userGroup, this.userEmail )
+    	def gitlabresults = GitLab.createGitLabProject( this.projectName, this.userInfo )
     	IJ.log( "The project is: " )
-    	IJ.log( ""+gitlabresults['project'] )
+    	IJ.log( ""+gitlabresults.project )
+    	
+    	// Add user to the project if it exists
+    	IJ.log("USER: " + this.userInfo )
+    	
+    	def user = GitLab.getGitLabUser( this.userInfo.gaspar )
+    	IJ.log("USER: " + user )
+    	
+    	if( user != null ) {
+    		GitLab.addUserToProject( user.id, gitlabresults.project )
+    	}
     	
     	// Create the folders
-    	def projectDataFolder = Utilities.createProjectDataFolder( gitlabresults['project'] )
+    	def projectDataFolder = Utilities.createProjectDataFolder( gitlabresults.project )
     	
-    	def repoUrl = dryRun ? "https://biop.epfl.ch" : gitlabresults['project']['http_url_to_repo']
+    	def repoUrl = dryRun ? "https://biop.epfl.ch" : gitlabresults.project.http_url_to_repo
     	// Add shortcut to GitLab
     	Utilities.createInternetShortcut("GitLab to ${this.projectName}", projectDataFolder, repoUrl )
     	
-    	def localRepo = Utilities.initialiseLocalGitandPush( gitlabresults['project'], gitlabresults['analyst'] )
+    	def localRepo = Utilities.initialiseLocalGitandPush( gitlabresults.project, gitlabresults.analyst )
     		
     	Utilities.createShorcut( projectDataFolder , localRepo)
 
@@ -85,9 +104,9 @@ class UserManagerGit{
 			Unirest.config().setDefaultHeader( "Content-Type", "application/json" )
 		}
 		
-		static createGitLabProject( String projectName, String groupName, String userEmail ) {
+		static createGitLabProject( String projectName, def userInfo ) {
 			// First get or create the group as needed
-			String groupID = getGitLabSubGroup( groupName )
+			String groupID = getGitLabSubGroup( userInfo.gitLabGroup )
 			IJ.log( "GitLab Group ID is '$groupID'" )
 			
 			// Get current IPA user
@@ -125,10 +144,26 @@ class UserManagerGit{
 			
 			// Set email on push for the //PUT /projects/:id/integrations/emails-on-push
 			def emailOnPush = Unirest.put( this.gitLabAPI+"/projects/$projectID/integrations/emails-on-push" )
-			.queryString( "recipients", userEmail )
+			.queryString( "recipients", userInfo.email )
 			.asJson()	
 			
 			return [project:projectResult, analyst:ipaUserResult]
+		}
+		
+		static void addUserToProject( def userId, def gitlabProject ) {
+			def addUserProjectQuery = Unirest.post( this.gitLabAPI+"/projects/${gitlabProject.id}/members" )
+								.queryString("user_id", userId )
+								.queryString("access_level", 20 )
+								.asJson()
+				def addUserProjectResult = getResult( addUserProjectQuery )
+			
+			def addUserGroupQuery = Unirest.post( this.gitLabAPI+"/groups/${gitlabProject.namespace.id}/members" )
+								.queryString("user_id", userId )
+								.queryString("access_level", 20 )
+								.asJson()
+				def addUserGrouptResult = getResult( addUserGroupQuery )
+			//access_level (0: no access, 5: minimal access, 10: guest, 20 : reporter, 30: developer, 40: maintainer, 50: owner
+
 		}
 
 		static def getGitLabSubGroup(def groupName ) {
@@ -150,6 +185,16 @@ class UserManagerGit{
 			}
 			
 			return result['id']
+		}
+		
+		static def getGitLabUser( def gaspar ) {
+			def userQuery = Unirest.get( this.gitLabAPI+"/users" )
+								.queryString( "username", gaspar )
+								.asJson()
+			def userResult = getResult( userQuery )
+			
+			return userResult
+			
 		}
 		
 		// Helper function. Normally I would use getObject() but it does not work...
@@ -230,12 +275,13 @@ class UserManagerGit{
 		}
 		
 		static createShorcut( def shared_folder , def localRepo){
+			IJ.log("Creating shortcut to "+shared_folder)
 			def local_shortcut = new File( localRepo , "Shared_Folder.lnk")
 			execute(" \"C:\\Program Files\\Git\\mingw64\\bin\\create-shortcut.exe\" $shared_folder $local_shortcut")
 		}
 		
 		// LDAP Query to get the default group from a user
-		static String getUserGroup( String email ) { 
+		static def getUserInfo( String email ) { 
 			
 			// Connect to EPFL LDAP
 			def connection = new LdapNetworkConnection( 'ldap.epfl.ch' );
@@ -249,7 +295,7 @@ class UserManagerGit{
 			// Search everywhere
 			req.setScope( SearchScope.SUBTREE )
 			// 'ou' is the group the person belongs to
-			req.addAttributes( 'ou' )
+			req.addAttributes( 'ou', 'uid' )
 			
 			req.setTimeLimit( 0 )
 			
@@ -260,7 +306,7 @@ class UserManagerGit{
 			req.setBase( new Dn( 'o=epfl,c=ch' ) )
 			
 			// Here we are looking for a person AND an email that should exactly match AND the default group of the person
-			req.setFilter( "(&(objectClass=person)(mail=${email})(EPFLAccredOrder=1))" )
+			req.setFilter( "(&(objectClass=person)(mail=${email}))" )
 			    
 			// Finally run the search
 			def results = connection.search( req )
@@ -269,19 +315,36 @@ class UserManagerGit{
 			// Probably a bug, but considering it is a small list, I am not worried too much about it
 			def resList = results.toList()
 			
-			def group = 'UNKNOWN'
-			
-			//IJ.log( ""+resList)
-			
-			if( resList.size() == 1)
-				group =  resList.get( 0 ).getEntry().get( 'ou' )[0]
-			
 			// Close the connection to the results
 			results.close()
 			
 			// End the connection to LDAP
 			connection.close()
-			return group
+			
+			
+			// Some users are in Masters and are not affiliated with a lab. 
+			// Or if they are, it is not their default lab
+			// We need to filter out their affiliations and find the ones that are not linked to studies 'etu'
+			// The line below filters, for each potential entry with multiple affiliations, the ones that do not contain 'etu' or 'XXX-ens in their DN (Distinguished Name)
+			def filtered = resList.findAll{ 
+				def rdns = it.getEntry()['dn'].getRdns().collect{ a -> a.getValue() } // Get the components of this DN as a list
+				!rdns.any{ it =~ /(?:.*etu|.*-ens)/} // Return true if any of the components contains `etu` or `XXX-ens`
+				}.reverse() // Reverse order, so it's the default affiliation first
+			
+			IJ.log(""+ filtered )
+			def group = 'UNKNOWN'
+
+			// Get the group
+			if( filtered.size() >= 1 )
+				group = filtered.get( 0 ).getEntry().get( 'ou' )[0].toString()
+
+			// Get Gaspar if we can find the person. Use the raw search results, we do not care about the affiliation
+			def gaspar = 'unknown'
+			if( resList.size() >= 1 ) {
+				gaspar =  resList.get( 0 ).getEntry().get( 'uid' )[0].toString().split('@')[0]
+			}
+
+			return [gaspar: gaspar, group: group, email: email]
 		}
 		
 		private static execute( String command ) {
