@@ -250,7 +250,7 @@ class UserManagerGit{
 			localRepo.mkdirs()
 			def projectDataFolder = createProjectDataFolder(gitlabProject)
 			def projectFolderWin = "\\${projectDataFolder.getAbsolutePath()}"
-			def projectFolderMac = "smb:/${projectDataFolder.getAbsolutePath().replaceAll("\\", "/")}"
+			def projectFolderMac = "smb:/${projectDataFolder.getAbsolutePath().replace("\\", "/")}"
 			
 			def readme = new File( localRepo, "readme.md")
 	    	readme.write "# ${gitlabProject['name']}\n\n"
