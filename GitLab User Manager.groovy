@@ -248,11 +248,17 @@ class UserManagerGit{
 			def gitGroupFolder = new File( this.localGitReposFolder, gitlabProject['namespace']['name'] )
 			def localRepo = new File( gitGroupFolder, gitlabProject['path'] )
 			localRepo.mkdirs()
+			def projectDataFolder = createProjectDataFolder(gitlabProject)
+			def projectFolderWin = "\\${projectDataFolder.getAbsolutePath()}"
+			def projectFolderMac = "smb:/${projectDataFolder.getAbsolutePath().replaceAll("\\", "/")}"
 			
 			def readme = new File( localRepo, "readme.md")
 	    	readme.write "# ${gitlabProject['name']}\n\n"
 	    	readme << "Created by: ${analyst['name']}\n\n"
-	    	readme << "Gitlab URL: ${gitlabProject['web_url']}\n"
+	    	readme << "Gitlab URL: ${gitlabProject['web_url']}\n\n"
+	    	readme << "Data folder on BIOP server: \n\n"
+	    	readme << "\tWIN: $projectFolderWin\n\n"
+	   		readme << "\tMAC: $projectFolderMac\n\n"
 			
 			
 			execute("cd $localRepo & cd ${gitlabProject['path']}" +
