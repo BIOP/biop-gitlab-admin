@@ -1,6 +1,7 @@
 // https://mvnrepository.com/artifact/com.konghq/unirest-java
 @Grapes([
-    @Grab(group='com.konghq', module='unirest-java', version='3.14.5'), //4.0.0-RC2
+    @Grab(group='com.konghq', module='unirest-java', version='3.14.5'),
+ //4.0.0-RC2
     @Grab(group='org.apache.directory.api', module='api-all', version='2.1.0')
 ])
 
@@ -248,7 +249,8 @@ class UserManagerGit{
 			def gitGroupFolder = new File( this.localGitReposFolder, gitlabProject['namespace']['name'] )
 			def localRepo = new File( gitGroupFolder, gitlabProject['path'] )
 			localRepo.mkdirs()
-			def projectDataFolder = createProjectDataFolder(gitlabProject)
+			
+def projectDataFolder = createProjectDataFolder(gitlabProject)
 			def projectFolderWin = "\\${projectDataFolder.getAbsolutePath()}"
 			def projectFolderMac = "smb:/${projectDataFolder.getAbsolutePath().replace("\\", "/")}"
 			
@@ -361,7 +363,8 @@ class UserManagerGit{
 			IJ.log( "out> $sout\nerr> $serr")
 
 		}
-			
+		
+	
 	}
 
 }
