@@ -4,17 +4,19 @@
     @Grab(group='org.apache.directory.api', module='api-all', version='2.1.0')
 ])
 
-#@ String (value="firstname.lastname@epfl.ch") user_email
-#@ String (value="The Project Name") project_name
+#@String (value="firstname.lastname@epfl.ch") user_email
+#@String (value="The Project Name") project_name
 
-#@ Boolean(value=false) dryRun_status
+#@Boolean(value=false) dryRun_status
+#@File(style = "directory", value="D:\\gitlab-ipa-projects") localGitReposFolder
+
 
 // Hello
 def a = 1
 UserManagerGit.dryRun = dryRun_status
 
 def umg = new UserManagerGit(user_email, project_name)
-umg.letsGo()
+umg.letsGo(localGitReposFolder)
 
 return
 // TODO: Prepare email for user
@@ -35,7 +37,7 @@ class UserManagerGit {
     private String omeroDataID
 
     private static File biopDataFolder = new File("\\\\sv-nas1.rcp.epfl.ch\\ptbiop-raw\\public\\")
-    private static File localGitReposFolder = new File("D:\\gitlab-ipa-projects")
+    //private static File localGitReposFolder = new File("D:\\gitlab-ipa-projects")
 
     // Read the GitLab API from a .gitlab file made by the user
     static {
@@ -59,7 +61,7 @@ class UserManagerGit {
         IJ.log("User GitLab group is: '${this.userInfo.gitLabGroup}'")
     }
 
-    public letsGo() {
+    public letsGo(File localGitReposFolder) {
 
         // Create the GitLab Entry
         def gitlabresults = GitLab.createGitLabProject(this.projectName, this.userInfo)
@@ -83,16 +85,29 @@ class UserManagerGit {
         // Add shortcut to GitLab
         Utilities.createInternetShortcut("GitLab to ${this.projectName}", projectDataFolder, repoUrl)
 
-        def localRepo = Utilities.initialiseLocalGitandPush(gitlabresults.project, gitlabresults.analyst)
+        def localRepo = Utilities.initialiseLocalGitandPush(gitlabresults.project, gitlabresults.analyst, localGitReposFolder)
 
-        Utilities.createShorcut(projectDataFolder, localRepo)
+        Utilities.createShorcut(projectDataFolder, localRepo, localGitReposFolder)
+
+		/* DUPLICATED CODE: BEURK!	
+		 *  
+		 */
+		
+		String groupID = GitLab.getGitLabSubGroup(this.userInfo.gitLabGroup)
+		
+		// Get current IPA user
+		def ipaUserQuery = Unirest.get(GitLab.gitLabAPI + "/user/").asJson()
+		def ipaUserResult = GitLab.getResult(ipaUserQuery)
+		def ipaUserID = ipaUserResult['id']
+
+		/* DUPLICATED BEURK */
 
         // Create a private issue labeled "on-going" and assign it to the user
-        GitLab.createProjectIssue(gitlabresults.project.id, "Project status", "This issue tracks the status of the project.", "on-going", user.id)
+        GitLab.createProjectIssue(gitlabresults.project.id, "Project status", "This issue tracks the status of the project.", "on-going", ipaUserID)
     }
 
     // Helper class for making simple requests to the GitLab API and returning meaningful objects
-    class GitLab {
+class GitLab {
         static String gitLabAPI = "https://gitlab.epfl.ch/api/v4"
         static int biopGroupId = 5110 // ID of the BIOP group in GitLab
 
@@ -249,10 +264,10 @@ class UserManagerGit {
             return projectFolder
         }
 
-        static initialiseLocalGitandPush(def gitlabProject, def analyst) {
+        static initialiseLocalGitandPush(def gitlabProject, def analyst, File localGitReposFolder) {
 
             // Create local folder
-            def gitGroupFolder = new File(this.localGitReposFolder, gitlabProject['namespace']['name'])
+            def gitGroupFolder = new File(localGitReposFolder, gitlabProject['namespace']['name'])
             def localRepo = new File(gitGroupFolder, gitlabProject['path'])
             localRepo.mkdirs()
 
@@ -281,7 +296,7 @@ class UserManagerGit {
                     "& git remote add origin ${gitlabProject['http_url_to_repo']}" +
                     "& git add ." +
                     "& git commit -m \"Initial commit\"" +
-                    "& git push --set-upstream origin main")
+                    "& git push --set-upstream origin main", localGitReposFolder)
 
             return localRepo
 
@@ -295,10 +310,10 @@ class UserManagerGit {
              */
         }
 
-        static createShorcut(def shared_folder, def localRepo) {
+        static createShorcut(def shared_folder, def localRepo, File localGitReposFolder) {
             IJ.log("Creating shortcut to " + shared_folder)
             def local_shortcut = new File(localRepo, "Shared_Folder.lnk")
-            execute(" \"C:\\Program Files\\Git\\mingw64\\bin\\create-shortcut.exe\" $shared_folder $local_shortcut")
+            execute(" \"C:\\Program Files\\Git\\mingw64\\bin\\create-shortcut.exe\" $shared_folder $local_shortcut", localGitReposFolder)
         }
 
         // LDAP Query to get the default group from a user
@@ -367,9 +382,9 @@ class UserManagerGit {
             return [gaspar: gaspar, group: group, email: email]
         }
 
-        private static execute(String command) {
+        private static execute(String command, File localGitReposFolder) {
             def sout = new StringBuilder(), serr = new StringBuilder()
-            def proc = ("cmd /c " + command).execute(System.getenv().collect { it }, this.localGitReposFolder)
+            def proc = ("cmd /c " + command).execute(System.getenv().collect { it }, localGitReposFolder)
             proc.consumeProcessOutput(sout, serr)
             proc.waitForProcessOutput()
             IJ.log("out> $sout\nerr> $serr")
