@@ -12,4 +12,14 @@
 3. Close the file
 4. Rename it `.gitlab`
 
-You should be good to go
+## Fiji 
+
+Activate `PTBIOP` update site and apply, restart Fiji
+
+# Run
+
+In Fiji :
+- use the search tool and look for `gitlab`
+- select `GitLab User Manager`
+- press `Run`
+- Fill the User_email and Project_name and press `OK`:
